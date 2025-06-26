@@ -3,7 +3,7 @@ package desensitization
 import "errors"
 
 const (
-	DESENSITIZATION_TYPE = "desensitization"
+	Type = "desensitization"
 )
 
 var (

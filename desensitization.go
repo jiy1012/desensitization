@@ -20,9 +20,9 @@ func Desensitization(obj interface{}) error {
 			case reflect.Slice, reflect.Array:
 				// 判断字段类型是否为结构体数组
 				if fieldType.Type.Elem().Kind() == reflect.Struct {
-					Desensitization(fieldValue.Addr().Interface())
+					_ = Desensitization(fieldValue.Addr().Interface())
 				} else {
-					desensitizationTag := fieldType.Tag.Get(DESENSITIZATION_TYPE)
+					desensitizationTag := fieldType.Tag.Get(Type)
 					if desensitizationTag != "" {
 						for i := 0; i < fieldValue.Len(); i++ {
 							elemValue := fieldValue.Index(i)
@@ -34,9 +34,9 @@ func Desensitization(obj interface{}) error {
 					}
 				}
 			case reflect.Struct:
-				Desensitization(fieldValue.Addr().Interface())
+				_ = Desensitization(fieldValue.Addr().Interface())
 			default:
-				desensitizationTag := fieldType.Tag.Get(DESENSITIZATION_TYPE)
+				desensitizationTag := fieldType.Tag.Get(Type)
 				if desensitizationTag != "" {
 					newValue, err := OperateByRule(desensitizationTag, fieldValue.Interface())
 					if err == nil {
@@ -49,9 +49,9 @@ func Desensitization(obj interface{}) error {
 		for i := 0; i < rv.Len(); i++ {
 			elemValue := rv.Index(i)
 			if reflect.TypeOf(elemValue).Kind() == reflect.Ptr {
-				Desensitization(elemValue.Interface())
+				_ = Desensitization(elemValue.Interface())
 			} else {
-				Desensitization(elemValue.Addr().Interface())
+				_ = Desensitization(elemValue.Addr().Interface())
 			}
 		}
 	default:

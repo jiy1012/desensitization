@@ -1,7 +1,7 @@
 package test
 
 import (
-	"desensitization"
+	"github.com/jiy1012/desensitization"
 	"testing"
 )
 

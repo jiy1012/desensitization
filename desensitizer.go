@@ -1,18 +1,22 @@
 package desensitization
 
 import (
-	"desensitization/desensitizer/chinese_idcard"
-	"desensitization/desensitizer/chinese_name"
-	"desensitization/desensitizer/email"
-	"desensitization/desensitizer/phone"
+	"github.com/jiy1012/desensitization/desensitizer/chinese_idcard"
+	"github.com/jiy1012/desensitization/desensitizer/chinese_name"
+	"github.com/jiy1012/desensitization/desensitizer/email"
+	"github.com/jiy1012/desensitization/desensitizer/empty"
+	"github.com/jiy1012/desensitization/desensitizer/mask"
+	"github.com/jiy1012/desensitization/desensitizer/phone"
 	"sync"
 )
 
 func init() {
-	RegisterDesensitizer(email.Type, email.Operator{})
-	RegisterDesensitizer(phone.Type, phone.Operator{})
-	RegisterDesensitizer(chinese_name.Type, chinese_name.Operator{})
-	RegisterDesensitizer(chinese_idcard.Type, chinese_idcard.Operator{})
+	_ = RegisterDesensitizer(email.Type, email.Operator{})
+	_ = RegisterDesensitizer(phone.Type, phone.Operator{})
+	_ = RegisterDesensitizer(chinese_name.Type, chinese_name.Operator{})
+	_ = RegisterDesensitizer(chinese_idcard.Type, chinese_idcard.Operator{})
+	_ = RegisterDesensitizer(empty.Type, empty.Operator{})
+	_ = RegisterDesensitizer(mask.Type, mask.Operator{})
 }
 
 var desensitizers map[string]Desensitizer
