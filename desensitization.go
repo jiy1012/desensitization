@@ -5,56 +5,98 @@ import (
 )
 
 func Desensitization(obj interface{}) error {
-	rt := reflect.TypeOf(obj)
 	rv := reflect.ValueOf(obj)
-	if rv.Kind() == reflect.Ptr {
-		rv = rv.Elem()
-		rt = rt.Elem()
+	if !rv.IsValid() {
+		return nil
 	}
+
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			return nil
+		}
+		rv = rv.Elem()
+	}
+
+	if isBasicType(rv.Kind()) {
+		return nil
+	}
+
+	rt := rv.Type()
 	switch rv.Kind() {
 	case reflect.Struct:
-		for idx := 0; idx < rv.NumField(); idx++ {
-			fieldValue := rv.Field(idx)
-			fieldType := rt.Field(idx)
-			switch fieldType.Type.Kind() {
-			case reflect.Slice, reflect.Array:
-				// 判断字段类型是否为结构体数组
-				if fieldType.Type.Elem().Kind() == reflect.Struct {
-					_ = Desensitization(fieldValue.Addr().Interface())
+		for i := 0; i < rv.NumField(); i++ {
+			field := rv.Field(i)
+			fieldType := rt.Field(i)
+			if !field.CanSet() {
+				continue
+			}
+
+			tag := fieldType.Tag.Get(TagKey)
+			switch field.Kind() {
+			case reflect.Struct:
+				if field.CanAddr() {
+					_ = Desensitization(field.Addr().Interface())
 				} else {
-					desensitizationTag := fieldType.Tag.Get(Type)
-					if desensitizationTag != "" {
-						for i := 0; i < fieldValue.Len(); i++ {
-							elemValue := fieldValue.Index(i)
-							newValue, err := OperateByRule(desensitizationTag, elemValue.Interface())
-							if err == nil {
-								elemValue.Set(reflect.ValueOf(newValue))
+					_ = Desensitization(field.Interface())
+				}
+			case reflect.Slice, reflect.Array:
+				elemType := fieldType.Type.Elem()
+				isPtr := elemType.Kind() == reflect.Ptr
+				if isPtr {
+					elemType = elemType.Elem()
+				}
+
+				if elemType.Kind() == reflect.Struct {
+					for j := 0; j < field.Len(); j++ {
+						elem := field.Index(j)
+						if isPtr {
+							if !elem.IsNil() {
+								_ = Desensitization(elem.Interface())
+							}
+						} else {
+							if elem.CanAddr() {
+								_ = Desensitization(elem.Addr().Interface())
+							} else {
+								_ = Desensitization(elem.Interface())
+							}
+						}
+					}
+				} else if tag != "" {
+					for j := 0; j < field.Len(); j++ {
+						elem := field.Index(j)
+						newVal, err := OperateByRule(tag, elem.Interface())
+						if err == nil {
+							nv := reflect.ValueOf(newVal)
+							if nv.Type().ConvertibleTo(elem.Type()) {
+								elem.Set(nv.Convert(elem.Type()))
 							}
 						}
 					}
 				}
-			case reflect.Struct:
-				_ = Desensitization(fieldValue.Addr().Interface())
 			default:
-				desensitizationTag := fieldType.Tag.Get(Type)
-				if desensitizationTag != "" {
-					newValue, err := OperateByRule(desensitizationTag, fieldValue.Interface())
+				if tag != "" {
+					newVal, err := OperateByRule(tag, field.Interface())
 					if err == nil {
-						fieldValue.Set(reflect.ValueOf(newValue))
+						nv := reflect.ValueOf(newVal)
+						if nv.Type().ConvertibleTo(field.Type()) {
+							field.Set(nv.Convert(field.Type()))
+						}
 					}
 				}
 			}
 		}
-	case reflect.Slice, reflect.Array:
-		for i := 0; i < rv.Len(); i++ {
-			elemValue := rv.Index(i)
-			if reflect.TypeOf(elemValue).Kind() == reflect.Ptr {
-				_ = Desensitization(elemValue.Interface())
-			} else {
-				_ = Desensitization(elemValue.Addr().Interface())
-			}
-		}
-	default:
 	}
 	return nil
+}
+
+func isBasicType(kind reflect.Kind) bool {
+	switch kind {
+	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
+		reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32,
+		reflect.Uint64, reflect.Uintptr, reflect.Float32, reflect.Float64,
+		reflect.Complex64, reflect.Complex128, reflect.String:
+		return true
+	default:
+		return false
+	}
 }
