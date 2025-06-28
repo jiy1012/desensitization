@@ -21,72 +21,70 @@ func Desensitization(obj interface{}) error {
 		return nil
 	}
 
-	rt := rv.Type()
 	switch rv.Kind() {
 	case reflect.Struct:
-		for i := 0; i < rv.NumField(); i++ {
-			field := rv.Field(i)
-			fieldType := rt.Field(i)
-			if !field.CanSet() {
-				continue
+		processStruct(rv)
+	case reflect.Slice, reflect.Array:
+		processSlice(rv, "")
+	}
+	return nil
+}
+
+func processStruct(rv reflect.Value) {
+	rt := rv.Type()
+	for i := 0; i < rv.NumField(); i++ {
+		field := rv.Field(i)
+		fieldType := rt.Field(i) // 正确获取StructField
+
+		if !field.CanSet() {
+			continue
+		}
+
+		tag := fieldType.Tag.Get(TagKey)
+		switch field.Kind() {
+		case reflect.Struct:
+			if field.CanAddr() {
+				_ = Desensitization(field.Addr().Interface())
+			} else {
+				_ = Desensitization(field.Interface())
 			}
-
-			tag := fieldType.Tag.Get(TagKey)
-			switch field.Kind() {
-			case reflect.Struct:
-				if field.CanAddr() {
-					_ = Desensitization(field.Addr().Interface())
-				} else {
-					_ = Desensitization(field.Interface())
-				}
-			case reflect.Slice, reflect.Array:
-				elemType := fieldType.Type.Elem()
-				isPtr := elemType.Kind() == reflect.Ptr
-				if isPtr {
-					elemType = elemType.Elem()
-				}
-
-				if elemType.Kind() == reflect.Struct {
-					for j := 0; j < field.Len(); j++ {
-						elem := field.Index(j)
-						if isPtr {
-							if !elem.IsNil() {
-								_ = Desensitization(elem.Interface())
-							}
-						} else {
-							if elem.CanAddr() {
-								_ = Desensitization(elem.Addr().Interface())
-							} else {
-								_ = Desensitization(elem.Interface())
-							}
-						}
-					}
-				} else if tag != "" {
-					for j := 0; j < field.Len(); j++ {
-						elem := field.Index(j)
-						newVal, err := OperateByRule(tag, elem.Interface())
-						if err == nil {
-							nv := reflect.ValueOf(newVal)
-							if nv.Type().ConvertibleTo(elem.Type()) {
-								elem.Set(nv.Convert(elem.Type()))
-							}
-						}
-					}
-				}
-			default:
-				if tag != "" {
-					newVal, err := OperateByRule(tag, field.Interface())
-					if err == nil {
-						nv := reflect.ValueOf(newVal)
-						if nv.Type().ConvertibleTo(field.Type()) {
-							field.Set(nv.Convert(field.Type()))
-						}
-					}
-				}
+		case reflect.Slice, reflect.Array:
+			processSlice(field, tag)
+		default:
+			if tag != "" {
+				processField(field, tag)
 			}
 		}
 	}
-	return nil
+}
+
+func processSlice(field reflect.Value, tag string) {
+	for i := 0; i < field.Len(); i++ {
+		elem := field.Index(i)
+		if elem.Kind() == reflect.Ptr {
+			if !elem.IsNil() {
+				_ = Desensitization(elem.Interface())
+			}
+		} else if elem.Kind() == reflect.Struct {
+			if elem.CanAddr() {
+				_ = Desensitization(elem.Addr().Interface())
+			} else {
+				_ = Desensitization(elem.Interface())
+			}
+		} else if tag != "" {
+			processField(elem, tag)
+		}
+	}
+}
+
+func processField(field reflect.Value, tag string) {
+	newVal, err := OperateByRule(tag, field.Interface())
+	if err == nil {
+		nv := reflect.ValueOf(newVal)
+		if nv.Type().ConvertibleTo(field.Type()) {
+			field.Set(nv.Convert(field.Type()))
+		}
+	}
 }
 
 func isBasicType(kind reflect.Kind) bool {
