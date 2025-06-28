@@ -137,3 +137,34 @@ func TestDesensitizationArrayStructArrayFields(t *testing.T) {
 	}
 	fmt.Println(p)
 }
+
+type Response struct {
+	Code    int         `json:"code"`
+	Msg     string      `json:"msg" desensitization:"MASK"`
+	Message string      `json:"message" desensitization:"EMPTY"`
+	Data    interface{} `json:"data"`
+}
+
+func TestDesensitizationStructInterfaceArrayFields(t *testing.T) {
+	p := Response{
+		Code:    0,
+		Msg:     "msg is ok",
+		Message: "this is a message",
+		Data:    nil,
+	}
+	var pData []TestCommonFields
+	pData = append(pData, TestCommonFields{
+		Phone: "11111111111",
+		Email: "example1@example1.com",
+	})
+	pData = append(pData, TestCommonFields{
+		Phone: "22222222222",
+		Email: "example2@example2.com",
+	})
+	p.Data = pData
+	fmt.Println(p)
+	if err := Desensitization(&p); err != nil {
+		t.Errorf("Desensitization() error = %v", err)
+	}
+	fmt.Println(p)
+}

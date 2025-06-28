@@ -23,18 +23,24 @@ func Desensitization(obj interface{}) error {
 
 	switch rv.Kind() {
 	case reflect.Struct:
-		processStruct(rv)
+		return processStruct(rv)
 	case reflect.Slice, reflect.Array:
-		processSlice(rv, "")
+		return processSlice(rv, "")
+	case reflect.Interface:
+		if !rv.IsNil() {
+			return Desensitization(rv.Elem().Interface())
+		}
+	default:
+		return nil
 	}
 	return nil
 }
 
-func processStruct(rv reflect.Value) {
+func processStruct(rv reflect.Value) error {
 	rt := rv.Type()
 	for i := 0; i < rv.NumField(); i++ {
 		field := rv.Field(i)
-		fieldType := rt.Field(i) // 正确获取StructField
+		fieldType := rt.Field(i)
 
 		if !field.CanSet() {
 			continue
@@ -43,48 +49,71 @@ func processStruct(rv reflect.Value) {
 		tag := fieldType.Tag.Get(TagKey)
 		switch field.Kind() {
 		case reflect.Struct:
-			if field.CanAddr() {
-				_ = Desensitization(field.Addr().Interface())
-			} else {
-				_ = Desensitization(field.Interface())
+			if err := processStruct(field); err != nil {
+				return err
 			}
 		case reflect.Slice, reflect.Array:
-			processSlice(field, tag)
+			if err := processSlice(field, tag); err != nil {
+				return err
+			}
+		case reflect.Interface:
+			if !field.IsNil() {
+				if err := Desensitization(field.Interface()); err != nil {
+					return err
+				}
+			}
 		default:
 			if tag != "" {
-				processField(field, tag)
+				if err := processField(field, tag); err != nil {
+					return err
+				}
 			}
 		}
 	}
+	return nil
 }
 
-func processSlice(field reflect.Value, tag string) {
+func processSlice(field reflect.Value, tag string) error {
 	for i := 0; i < field.Len(); i++ {
 		elem := field.Index(i)
-		if elem.Kind() == reflect.Ptr {
+		switch elem.Kind() {
+		case reflect.Ptr:
 			if !elem.IsNil() {
-				_ = Desensitization(elem.Interface())
+				if err := Desensitization(elem.Interface()); err != nil {
+					return err
+				}
 			}
-		} else if elem.Kind() == reflect.Struct {
-			if elem.CanAddr() {
-				_ = Desensitization(elem.Addr().Interface())
-			} else {
-				_ = Desensitization(elem.Interface())
+		case reflect.Struct:
+			if err := processStruct(elem); err != nil {
+				return err
 			}
-		} else if tag != "" {
-			processField(elem, tag)
+		case reflect.Interface:
+			if !elem.IsNil() {
+				if err := Desensitization(elem.Interface()); err != nil {
+					return err
+				}
+			}
+		default:
+			if tag != "" {
+				if err := processField(elem, tag); err != nil {
+					return err
+				}
+			}
 		}
 	}
+	return nil
 }
 
-func processField(field reflect.Value, tag string) {
+func processField(field reflect.Value, tag string) error {
 	newVal, err := OperateByRule(tag, field.Interface())
-	if err == nil {
-		nv := reflect.ValueOf(newVal)
-		if nv.Type().ConvertibleTo(field.Type()) {
-			field.Set(nv.Convert(field.Type()))
-		}
+	if err != nil {
+		return err
 	}
+	nv := reflect.ValueOf(newVal)
+	if nv.Type().ConvertibleTo(field.Type()) {
+		field.Set(nv.Convert(field.Type()))
+	}
+	return nil
 }
 
 func isBasicType(kind reflect.Kind) bool {
