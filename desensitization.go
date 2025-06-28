@@ -35,7 +35,6 @@ func Desensitization(obj interface{}) error {
 	}
 	return nil
 }
-
 func processStruct(rv reflect.Value) error {
 	rt := rv.Type()
 	for i := 0; i < rv.NumField(); i++ {
@@ -58,8 +57,28 @@ func processStruct(rv reflect.Value) error {
 			}
 		case reflect.Interface:
 			if !field.IsNil() {
-				if err := Desensitization(field.Interface()); err != nil {
-					return err
+				// 关键改进：获取接口实际值并递归处理
+				elem := field.Elem()
+				if elem.Kind() == reflect.Struct {
+					if elem.CanAddr() {
+						// 通过指针传递确保修改原始数据
+						if err := Desensitization(elem.Addr().Interface()); err != nil {
+							return err
+						}
+					} else {
+						// 处理不可寻址的结构体值：创建副本并回写
+						newVal := reflect.New(elem.Type()).Elem()
+						newVal.Set(elem)
+						if err := Desensitization(newVal.Addr().Interface()); err != nil {
+							return err
+						}
+						field.Set(newVal)
+					}
+				} else {
+					// 处理非结构体接口值
+					if err := Desensitization(field.Interface()); err != nil {
+						return err
+					}
 				}
 			}
 		default:

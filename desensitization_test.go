@@ -168,3 +168,23 @@ func TestDesensitizationStructInterfaceArrayFields(t *testing.T) {
 	}
 	fmt.Println(p)
 }
+
+func TestDesensitizationStructInterfaceStructFields(t *testing.T) {
+	p := Response{
+		Code:    0,
+		Msg:     "msg is ok",
+		Message: "this is a message",
+		Data:    nil,
+	}
+	var pData TestCommonFields
+	pData = TestCommonFields{
+		Phone: "11111111111",
+		Email: "example1@example1.com",
+	}
+	p.Data = pData
+	fmt.Println(p)
+	if err := Desensitization(&p); err != nil {
+		t.Errorf("Desensitization() error = %v", err)
+	}
+	fmt.Println(p)
+}
