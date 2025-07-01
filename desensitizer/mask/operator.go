@@ -17,5 +17,8 @@ func (Operator) Desensitization(in interface{}) (out interface{}, err error) {
 	if l < 5 {
 		return "****", nil
 	}
-	return inStr[:l/2-2] + "****" + inStr[l/2+2:], nil
+	if l < 12 {
+		return inStr[:2] + "****" + inStr[l-2:], nil
+	}
+	return inStr[:4] + "****" + inStr[l-4:], nil
 }
